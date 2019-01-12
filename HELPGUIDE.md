@@ -34,6 +34,6 @@ use compilation flags `-lSDL2 -lGLEW`
 
 ## getting SEGFAULT at `glGenBuffers()`
 
-According to [https://www.opengl.org/discussion_boards/showthread.php/170104-glGenBuffers-segfault](OpenGL forums),
+According to [OpenGL forums](https://www.opengl.org/discussion_boards/showthread.php/170104-glGenBuffers-segfault),
 
 call glGenBuffers after window and context creation (with SDL).
