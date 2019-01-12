@@ -28,12 +28,20 @@ In Makefile, use flag: `-I/usr/include/SDL2`
 
 ???
 
-## Linking SDL2, GLEW
+## Linking SDL2(input, media), GLEW(modern OpenGL function), GL(actual OpenGL library)
 
-use compilation flags `-lSDL2 -lGLEW`
+use compilation flags `-lSDL2 -lGLEW -lGL`
 
 ## getting SEGFAULT at `glGenBuffers()`
 
 According to [OpenGL forums](https://www.opengl.org/discussion_boards/showthread.php/170104-glGenBuffers-segfault),
 
 call glGenBuffers after window and context creation (with SDL).
+
+## catching errors with OpenGL using callbacks
+
+[Khronos: Catching Errors with Callbacks](https://www.khronos.org/opengl/wiki/OpenGL_Error#Catching_errors_.28the_easy_way.29)
+
+1. enable debug output
+1. register callback
+1. wait for it to be called

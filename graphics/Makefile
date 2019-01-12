@@ -1,7 +1,7 @@
 CC = g++
 CFLAGS = -Wall -Werror -Wshadow -pedantic -std=gnu++11
 INCLUDE_FLAGS = -I/usr/include/SDL2/
-LIBRARY_FLAGS = -lSDL2 -lGLEW
+LIBRARY_FLAGS = -lSDL2 -lGLEW -lGL
 DEFINE_FLAGS = -DGLEW_STATIC
 
 graphics:
