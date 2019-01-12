@@ -9,11 +9,57 @@
 #include <assert.h>
 #include <chrono>
 
+//our vertex shader
+
+//c++11 raw string literal
+const GLchar* vertexSource = R"glsl(
+    #version 150 core
+    in vec2 position;
+    in vec3 color;
+
+    out vec3 Color;
+
+    void main(){
+        Color = color;
+        gl_Position = vec4(position, 0.0, 1.0);
+    }
+)glsl";
+
+//NOTE: we leave out optional geometry shader for this one
+
+//our fragment shader
+const GLchar* fragmentSource = R"glsl(
+    #version 150 core
+
+    in vec3 Color;
+
+    out vec4 outColor;
+
+    void main(){
+        outColor = vec4(Color, 1.0);
+    }
+)glsl";
+
+
+//our shape
+const float vertices[] = {//vertex followed by (x, y, r, g, b) 
+    -0.5f,  0.5f, 1.0f, 0.0f, 0.0f, // Top-left
+    0.5f,  0.5f, 0.0f, 1.0f, 0.0f, // Top-right
+    0.5f, -0.5f, 0.0f, 0.0f, 1.0f, // Bottom-right
+    -0.5f, -0.5f, 1.0f, 1.0f, 1.0f  // Bottom-left
+};
+
+//indices of vertex, in an order, allows us to copy each vertex once
+const GLuint elements[] = {
+    0, 1, 2,
+    2, 3, 0
+};
+
 //taken from https://www.khronos.org/opengl/wiki/OpenGL_Error#Catching_errors_.28the_easy_way.29 
 //error message callbacks
 
 void GLAPIENTRY
-MessageCallback(    GLenum source,
+message_callback(    GLenum source,
                     GLenum type,
                     GLuint id,
                     GLenum severity,
@@ -26,12 +72,12 @@ MessageCallback(    GLenum source,
             type, severity, message );
 }
 
-int main(int argc, char* argv[]){
-    
+void init(SDL_Window** window, SDL_GLContext* context){
+    assert(window != NULL);
+    assert(context != NULL);
+
     //necessary to use modern opengl method for checking function availability
     glewExperimental = GL_TRUE;
-
-    
 
     //SDL init
     SDL_Init(SDL_INIT_EVERYTHING);
@@ -42,151 +88,109 @@ int main(int argc, char* argv[]){
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
     SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);//for stencil buffer
 
-    //create sdl window
-    SDL_Window* window = SDL_CreateWindow("OpenGL", 100, 100, 800, 600, SDL_WINDOW_OPENGL);
-    //last parameter can also be
-    //SDL_WINDOW_RESIZEABLE
-    //SDL_WINDOW_FULLSCREEN
-    
+    //set sdl window
+    *window = SDL_CreateWindow("OpenGL", 100, 100, 800, 600, SDL_WINDOW_OPENGL);
 
-    //create sdl context
-    SDL_GLContext context = SDL_GL_CreateContext(window);
+    //set sdl context
+    *context = SDL_GL_CreateContext(*window);
     
     //init glew after window creation after all function entry points created
     glewInit();
     // During init, enable debug output
     glEnable(GL_DEBUG_OUTPUT);
-    glDebugMessageCallback(MessageCallback, 0);
+    glDebugMessageCallback(message_callback, 0);
+}
 
-    //vertex array object, stores all the links (format) between the attributes of a program and
-    //the vbo with raw vertex data
+void compile_shader(GLint shader, const char* name){
+    assert(name != NULL);
+
+    //compile shader (graphics card compiles shader)
+    glCompileShader(shader);
+
+    //check to see if shader compiled correctly
+    
+    //to get a parameter from shader object:
+    GLint status;
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
+
+    if(status != GL_TRUE){
+        fprintf(stderr, "%s shader (%i) compilation failed!\n", name, shader);
+    }else{
+        printf("%s shader (%i) compiled successfully\n", name, shader);
+    }
+    
+    char buffer[512];// 511 chars + nul terminator of log
+
+    //getting shader log info
+    glGetShaderInfoLog(shader, 512, NULL, buffer);
+
+    printf("%s shader (%i) log info:\n%s\n", name, shader, buffer);
+    
+    //if compilation failed for any shader, exit
+    if(status != GL_TRUE){
+        fprintf(stderr, "exiting...\n");
+        exit(-1);
+    }
+}
+
+int main(int argc, char* argv[]){
+    
+    SDL_Window* window;
+    SDL_GLContext context;
 
     GLuint vao;
-    glGenVertexArrays(1, &vao);
-
-    //just call glBindVertexArray(GLuint vao); before every call to glVertexAttribPointer
-    //and the format will be rememebered in that vao
-    glBindVertexArray(vao);
-
-    //needs to be bound before vbo are bound
-
-    //our shape
-    float vertices[] = {//vertex followed by (x, y, r, g, b) 
-        -0.5f,  0.5f, 1.0f, 0.0f, 0.0f, // Top-left
-        0.5f,  0.5f, 0.0f, 1.0f, 0.0f, // Top-right
-        0.5f, -0.5f, 0.0f, 0.0f, 1.0f, // Bottom-right
-        -0.5f, -0.5f, 1.0f, 1.0f, 1.0f  // Bottom-left
-    };
-
-    //indices of vertex, in an order, allows us to copy each vertex once
-    GLuint elements[] = {
-        0, 1, 2,
-        2, 3, 0
-    };
-
+    GLuint vbo;
     GLuint ebo;
+
+    GLuint vertexShader;
+    GLuint fragmentShader;
+
+    GLuint shaderProgram;
+    
+    GLint posAttrib;
+    GLint colAttrib;
+
+    init(&window, &context);
+   
+    //generate vertex array
+    glGenVertexArrays(1, &vao);
+   
+    //generate element and vertex buffes
     glGenBuffers(1, &ebo);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(elements), elements, GL_STATIC_DRAW);
-
-    GLuint vbo;//vertex buffer object, refers to buffer on GPU memory, makes fast
-
     glGenBuffers(1, &vbo);
+
+    //bind objects (simple since only one of each)
+    glBindVertexArray(vao);
+    
+    //bind element and vertex buffers
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
     glBindBuffer(GL_ARRAY_BUFFER, vbo);//make the object active, before uploading data to it.
     //this makes vbo the active array buffer, need to switch to others before using them
-    
-    //interesting, sizeof returns total size of stack allocated array...
+
+    //load data to active element array buffer and active vertex buffer NOTICE THAT ebo AND vbo NOT ARGUMENTS
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(elements), elements, GL_STATIC_DRAW); 
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);//load data onto active buffer
 
-    //our vertex shader
-
-    //c++11 raw string literal
-    const char* vertexSource = R"glsl(
-        #version 150 core
-        in vec2 position;
-        in vec3 color;
-
-        out vec3 Color;
-
-        void main(){
-            Color = color;
-            gl_Position = vec4(position, 0.0, 1.0);
-        }
-    )glsl";
-
-
-    //our fragment shader
-    const char* fragmentSource = R"glsl(
-        #version 150 core
-
-        in vec3 Color;
-
-        out vec4 outColor;
-
-        void main(){
-            outColor = vec4(Color, 1.0);
-        }
-    )glsl";
-
-    //NOTE: we leave out optional geometry shader for this one
-
     //create shader objects
-    GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
-    GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+    vertexShader = glCreateShader(GL_VERTEX_SHADER);
+    fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
       
     //load shader data 
     glShaderSource(vertexShader, 1, &vertexSource, NULL);
     glShaderSource(fragmentShader, 1, &fragmentSource, NULL); 
     //number of sources, source list, array of lengths  
-
-    //compile shader (graphics card compiles shader)
-    glCompileShader(vertexShader);
-    glCompileShader(fragmentShader);
-
-    //check to see if shaders compiled correctly
-    
-    //to get a parameter from shader object:
-    GLint vstatus;
-    GLint fstatus;
-
-    glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &vstatus);
-    glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &fstatus);
-
-    if(vstatus != GL_TRUE){
-        fprintf(stderr, "vertex shader compilation failed!\n");
-    }else{
-        printf("vertex shader compiled successfully\n");
-    }
-    
-    if(fstatus != GL_TRUE){
-        fprintf(stderr, "fragment shader compilation failed!\n");
-    }else{
-        printf("fragment shader compiled successfully\n");
-    }
-    
-    char vinfo_buff[512];// 511 chars + nul terminator of log
-    char finfo_buff[512];// 511 chars + nul terminator of log
-
-    //getting shader log info
-    glGetShaderInfoLog(vertexShader, 512, NULL, vinfo_buff);
-    glGetShaderInfoLog(fragmentShader, 512, NULL, finfo_buff);
-
-    printf("vertex shader log info:\n%s\n", vinfo_buff);
-    printf("fragment shader log info:\n%s\n", finfo_buff);
-    
-    //if compilation failed for any shader, exit
-    if(!(vstatus == GL_TRUE && fstatus == GL_TRUE)){
-        exit(-1);
-    }
+   
+    //compile shaders
+    compile_shader(vertexShader, "vertex");
+    compile_shader(fragmentShader, "fragment");
 
     //combine shaders into a program
 
     //create an empty program
-    GLuint shaderProgram = glCreateProgram();
-    //attach vertex shader to program
+    shaderProgram = glCreateProgram();
+
+    //attach shaders to program
     glAttachShader(shaderProgram, vertexShader);
-    //attach fragment shader to program
     glAttachShader(shaderProgram, fragmentShader);
 
     //need to explicitly state which output of fragment is to which buffer
@@ -202,12 +206,12 @@ int main(int argc, char* argv[]){
     //now, need to specify our data format in buffer
     
     //get location of input position of fragment shader from program
-    GLint posAttrib = glGetAttribLocation(shaderProgram, "position");
+    posAttrib = glGetAttribLocation(shaderProgram, "position");
     //now, give format of our buffer
     glVertexAttribPointer(posAttrib, 2, GL_FLOAT, GL_FALSE, 5*sizeof(float), 0);//remember, this is in BYTES
     glEnableVertexAttribArray(posAttrib);
 
-    GLint colAttrib = glGetAttribLocation(shaderProgram, "color");
+    colAttrib = glGetAttribLocation(shaderProgram, "color");
     glVertexAttribPointer(colAttrib, 3, GL_FLOAT, GL_FALSE, 5*sizeof(float), (void*)(2*sizeof(float)));
     glEnableVertexAttribArray(colAttrib);
 
@@ -232,6 +236,17 @@ int main(int argc, char* argv[]){
         
         SDL_GL_SwapWindow(window);//swaps front and back buffers
     }
+
+    //free graphics resources
+    glDeleteProgram(shaderProgram);
+
+    glDeleteShader(fragmentShader);
+    glDeleteShader(vertexShader);
+
+    glDeleteBuffers(1, &ebo);
+    glDeleteBuffers(1, &vbo);
+
+    glDeleteVertexArrays(1, &vao);
 
     SDL_GL_DeleteContext(context);//free the context resources
     SDL_Quit();
