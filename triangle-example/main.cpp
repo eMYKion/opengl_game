@@ -7,7 +7,7 @@
 
 #include <stdio.h>
 #include <assert.h>
-#include <chrono>
+
 
 //taken from https://www.khronos.org/opengl/wiki/OpenGL_Error#Catching_errors_.28the_easy_way.29 
 //error message callbacks
@@ -25,6 +25,10 @@ MessageCallback(    GLenum source,
             ( type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : "" ),
             type, severity, message );
 }
+
+// During init, enable debug output
+// glEnable              ( GL_DEBUG_OUTPUT );
+// glDebugMessageCallback( MessageCallback, 0 );
 
 int main(int argc, char* argv[]){
     
@@ -102,13 +106,10 @@ int main(int argc, char* argv[]){
     //our fragment shader
     const char* fragmentSource = R"glsl(
         #version 150 core
-
-        uniform vec3 triangleColor;
-
         out vec4 outColor;
 
         void main(){
-            outColor = vec4(triangleColor, 1.0);
+            outColor = vec4(1.0, 1.0, 1.0, 1.0);
         }
     )glsl";
 
@@ -186,9 +187,7 @@ int main(int argc, char* argv[]){
     
     //get location of input position of fragment shader from program
     GLint posAttrib = glGetAttribLocation(shaderProgram, "position");
-    
-    //get uniform, we can change it in this program
-    GLint uniColor = glGetUniformLocation(shaderProgram, "triangleColor");
+
 
     //now, give format of our buffer
     glVertexAttribPointer(posAttrib, 2, GL_FLOAT, GL_FALSE, 0, 0);
@@ -206,8 +205,6 @@ int main(int argc, char* argv[]){
     SDL_Event windowEvent;
 
     //main loop
-    auto t_start = std::chrono::high_resolution_clock::now();
-
     while(true){
 
         if(SDL_PollEvent(&windowEvent)){//get next event, if it exists
@@ -218,11 +215,6 @@ int main(int argc, char* argv[]){
 
             }
         }
-
-        auto t_now = std::chrono::high_resolution_clock::now();
-        float time = std::chrono::duration_cast<std::chrono::duration<float>>(t_now - t_start).count();
-        //modifies the uniform in the fragment shader
-        glUniform3f(uniColor, (sin(time * 4.0f) + 1.0f)/2.0f, (sin(time * 4.0f + 2.094f) + 1.0f)/2.0f, (sin(time * 4.0f + 4.188f) + 1.0f)/2.0f);
 
         //draw the triangle (uses the currently bound VAO)
         glDrawArrays(GL_TRIANGLES, 0, 3);
