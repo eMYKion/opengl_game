@@ -1,6 +1,8 @@
 # OpenGL Demos
 
-[https://open.gl](https://open.gl)
+This repository contains a few small demos of [OpenGL](https://open.gl/) code.
+
+Each demo is a subfolder with C++ code and a Makefile. To run the ``
 
 ## REQUIREMENTS
 
