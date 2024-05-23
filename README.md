@@ -2,7 +2,15 @@
 
 This repository contains a few small demos of [OpenGL](https://open.gl/) code.
 
-Each demo is a subfolder with C++ code and a Makefile. To run the ``
+Each demo is a subfolder with C++ code and a Makefile. To run the `uniform-example`:
+
+```bash
+$ cd uniform-example/
+$ make
+$ ./grun
+```
+
+![triangle.png](./triangle.png)
 
 ## REQUIREMENTS
 
